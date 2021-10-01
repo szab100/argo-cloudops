@@ -1,0 +1,16 @@
+
+tasks:
+- init: make tidy; make build_service
+  command: ./scripts/start_local.sh
+
+# exposed ports
+ports:
+- port: 8443
+  #onOpen: open-preview
+
+image:
+  file: .gitpod.Dockerfile
+
+vscode:
+  extensions:
+    - golang.go

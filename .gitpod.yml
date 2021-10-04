@@ -1,0 +1,11 @@
+image:
+  file: .gitpod.Dockerfile
+checkoutLocation: gitpod-k3s
+tasks:
+  - name: K3S (QEMU)
+    command: |
+      /opt/qemu-k3s/qemu.sh
+  - name: Main
+    command: |
+      source /opt/qemu-k3s/ws-init.sh
+      /opt/qemu-k3s/prepare-k3s.sh

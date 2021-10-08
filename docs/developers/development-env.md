@@ -2,7 +2,7 @@
 
 >You can now work on this project in a cloud workspace using VSCode by simply clicking the button below. Everything is preinstalled for you, so you can ignore the first two sections and continue from [Deploy Sample App Locally](#deploy).
 >
->[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/szab100/sfdb)
+>[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/szab100/argo-cloudops)
 
 ## Pre-reqs
 

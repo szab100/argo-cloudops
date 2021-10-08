@@ -1,5 +1,9 @@
 # Quickstart
 
+>You can now simply open, build and run this project by clicking the button below.<br>Everything is preinstalled for you, so you can ignore the following sections and just run `./scripts/start_local.sh`.
+>
+>[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/szab100/sfdb)
+
 Note: this is a quick guide for getting something up and running. This is configured for local setups and not meant to be run in production
 
 ## Pre-reqs

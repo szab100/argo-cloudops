@@ -1,5 +1,9 @@
 # Development Environment setup
 
+>You can now work on this project in a cloud workspace using VSCode by simply clicking the button below. Everything is preinstalled for you, so you can ignore the first two sections and continue from [Deploy Sample App Locally](#deploy).
+>
+>[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/szab100/sfdb)
+
 ## Pre-reqs
 
 The below instructions assume Argo CloudOps is on your local OSX system
@@ -40,7 +44,7 @@ with Docker Desktop managing resource in AWS (region us-west-2) with credentials
     ```
 
 
-## Deploy Sample App Locally
+## <a name="deploy"> Deploy Sample App Locally
 
 You will need two windows
 

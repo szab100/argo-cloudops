@@ -3,6 +3,7 @@
 [![build](https://github.com/argoproj-labs/argo-cloudops/actions/workflows/build.yaml/badge.svg)](https://github.com/argoproj-labs/argo-cloudops/actions/workflows/build.yaml)
 
 # What Is Argo CloudOps?
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/szab100/sfdb)
 
 Argo CloudOps is a service for running infrastructure as code software tools
 including CDK, Terraform and Cloud Formation via GitOps.

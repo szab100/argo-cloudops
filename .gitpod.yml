@@ -1,6 +1,6 @@
 image:
   file: .gitpod/Dockerfile
-checkoutLocation: gitpod-k3s
+checkoutLocation: argo-cloudops
 tasks:
   - name: K3S (QEMU)
     command: |

@@ -8,6 +8,7 @@ if test -f "${argoreadylock}"; then
 fi
 
 echo "🔥 Installing Argo Workflows into local K3S cluster.."
+sleep 10
 kubectl create namespace argo
 kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.1.13/install.yaml
 

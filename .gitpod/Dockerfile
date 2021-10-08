@@ -32,8 +32,3 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     && unzip awscliv2.zip \
     && ./aws/install \
     && rm -rf ./aws; rm awscliv2.zip
-
-# Run postgresql
-ENV PGUSER=root
-ENV PGPASSWORD=1234
-RUN docker run --name postgres -e POSTGRES_USER=${PGUSER} -e POSTGRES_PASSWORD=${PGPASSWORD} -d -p 5432:5432 postgres

@@ -7,4 +7,4 @@ tasks:
       /opt/qemu-k3s/qemu.sh
   - name: Main
     command: |
-      source /opt/qemu-k3s/ws-init.sh
+      source .gitpod/ws-init.sh

@@ -1,9 +1,9 @@
 #!/bin/bash
 
 script_dirname=/opt/qemu-k3s
-k3sreadylock="/workspace/k3s-ready.lock"
+argoreadylock="/workspace/argo-ready.lock"
 
-if test -f "${k3sreadylock}"; then
+if test -f "${argoreadylock}"; then
     exit 0
 fi
 
@@ -12,4 +12,5 @@ kubectl create namespace argo
 kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.1.13/install.yaml
 
 kubectl create rolebinding default-admin --clusterrole=admin --serviceaccount=argo:default -n argo
+touch ${argoreadylock}
 echo "✅ Argo WF installation completed."

@@ -1,5 +1,6 @@
 #!/bin/sh
 
+source ~/.bash_profile
 DOCKER_PSQL_NAME=postgres
 
 # QEMU-K3S init

@@ -2,15 +2,13 @@
 
 DOCKER_PSQL_NAME=postgres
 
-set -a
 source ~/.bash_profile
 source .gitpod/.env
 
 # QEMU-K3S init
 source /opt/qemu-k3s/ws-init.sh
-set +a
 
-ln -fs .gitpod/.env ~/.env
+ln -fs $(pwd)/.gitpod/.env ~/.env
 echo "source ~/.env" > ~/.bashrc
 
 # Install Argo WF (one-time)

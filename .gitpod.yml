@@ -1,6 +1,13 @@
 image:
   file: .gitpod/Dockerfile
 checkoutLocation: argo-cloudops
+ports:
+  - port: 2222
+    onOpen: ignore
+  - port: 6443
+    onOpen: ignore
+  - port: 5432
+    onOpen: ignore
 tasks:
   - name: K3S (QEMU)
     command: |

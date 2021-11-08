@@ -1,6 +1,6 @@
 FROM ghcr.io/szab100/gitpod-k3s-qemu
 
-ENV trigger_rebuild 1
+ENV trigger_rebuild 2
 
 USER root
 

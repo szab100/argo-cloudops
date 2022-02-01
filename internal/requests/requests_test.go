@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/argoproj-labs/argo-cloudops/internal/validations"
 )
 
 func TestCreateWorkflowValidate(t *testing.T) {
@@ -185,6 +187,35 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			wantErr: errors.New("parameter pre_container_image_uri must be a valid container uri"),
 		},
 		{
+			name: "rejects unapproved exec container",
+			req: CreateWorkflow{
+				Framework: "cdk",
+				Parameters: map[string]string{
+					"execute_container_image_uri": "badactor-labs/argo-cloudops-exec",
+				},
+				ProjectName:          "project1",
+				TargetName:           "target1",
+				Type:                 "diff",
+				WorkflowTemplateName: "template1",
+			},
+			wantErr: errors.New("parameter execute_container_image_uri must be an approved image uri"),
+		},
+		{
+			name: "rejects unapproved pre container",
+			req: CreateWorkflow{
+				Framework: "cdk",
+				Parameters: map[string]string{
+					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"pre_container_image_uri":     "badactor-labs/argo-cloudops-exec",
+				},
+				ProjectName:          "project1",
+				TargetName:           "target1",
+				Type:                 "diff",
+				WorkflowTemplateName: "template1",
+			},
+			wantErr: errors.New("parameter pre_container_image_uri must be an approved image uri"),
+		},
+		{
 			name: "missing framework",
 			req: CreateWorkflow{
 				Parameters: map[string]string{
@@ -336,6 +367,8 @@ func TestCreateWorkflowValidate(t *testing.T) {
 		},
 	}
 
+	validations.SetImageURIs([]string{"argoproj-labs/*"})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.wantErr != nil {
@@ -359,14 +392,12 @@ func TestCreateGitWorkflowValidate(t *testing.T) {
 			req: CreateGitWorkflow{
 				CommitHash: "8458fd753f9fde51882414564c20df6d4c34a90e",
 				Path:       "./manifest.yaml",
-				Type:       "diff",
 			},
 		},
 		{
 			name: "missing commit hash",
 			req: CreateGitWorkflow{
 				Path: "./manifest.yaml",
-				Type: "diff",
 			},
 			wantErr: errors.New("sha is required"),
 		},
@@ -375,7 +406,6 @@ func TestCreateGitWorkflowValidate(t *testing.T) {
 			req: CreateGitWorkflow{
 				CommitHash: "8--",
 				Path:       "./manifest.yaml",
-				Type:       "diff",
 			},
 			wantErr: errors.New("sha must be alphanumeric"),
 		},
@@ -383,17 +413,8 @@ func TestCreateGitWorkflowValidate(t *testing.T) {
 			name: "missing path",
 			req: CreateGitWorkflow{
 				CommitHash: "8458fd753f9fde51882414564c20df6d4c34a90e",
-				Type:       "diff",
 			},
 			wantErr: errors.New("path is required"),
-		},
-		{
-			name: "missing type",
-			req: CreateGitWorkflow{
-				CommitHash: "8458fd753f9fde51882414564c20df6d4c34a90e",
-				Path:       "./manifest.yaml",
-			},
-			wantErr: errors.New("type is required"),
 		},
 	}
 

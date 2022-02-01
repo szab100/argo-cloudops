@@ -19,6 +19,7 @@ import (
 const (
 	diff                  = "diff"
 	defaultLocalSecureURI = "https://localhost:8443"
+	exec                  = "exec"
 	sync                  = "sync"
 )
 
@@ -81,10 +82,11 @@ func (c *Client) GetLogs(ctx context.Context, workflowName string) (responses.Ge
 func (c *Client) StreamLogs(ctx context.Context, w io.Writer, workflowName string) error {
 	var loggingCursorByte int64
 	// When we receive a stream error we continue and retry processing up to 5 times keeping track of the byte we were logging.
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 10; i++ {
 		err := c.streamLogsToWriterAtCursor(ctx, w, workflowName, &loggingCursorByte)
 		if err != nil {
-			if strings.Contains(err.Error(), "stream error: stream ID 1; INTERNAL_ERROR") {
+			// if connection idle timeout occurs retry
+			if strings.Contains(err.Error(), "stream error: stream ID 1; INTERNAL_ERROR") || strings.Contains(err.Error(), "stream error: stream ID 3; INTERNAL_ERROR") {
 				time.Sleep(time.Second * 10)
 				continue
 			}
@@ -168,6 +170,16 @@ func (c *Client) Diff(ctx context.Context, input TargetOperationInput) (response
 	}
 
 	return responses.Diff(output), nil
+}
+
+// Exec submits an "exec" for the provided project target.
+func (c *Client) Exec(ctx context.Context, input TargetOperationInput) (responses.Exec, error) {
+	output, err := c.targetOperation(ctx, input, exec)
+	if err != nil {
+		return responses.Exec{}, err
+	}
+
+	return responses.Exec(output), nil
 }
 
 // ExecuteWorkflow submits a workflow execution request.

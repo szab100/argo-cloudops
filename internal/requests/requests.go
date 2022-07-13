@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/argoproj-labs/argo-cloudops/internal/validations"
+	"github.com/cello-proj/cello/internal/types"
+	"github.com/cello-proj/cello/internal/validations"
 )
 
 // CreateWorkflow request.
@@ -65,9 +66,17 @@ func (req CreateWorkflow) validateParameters() error {
 		return errors.New("parameter execute_container_image_uri must be a valid container uri")
 	}
 
+	if !validations.IsApprovedImageURI(val) {
+		return errors.New("parameter execute_container_image_uri must be an approved image uri")
+	}
+
 	if val, ok := req.Parameters["pre_container_image_uri"]; ok {
 		if !validations.IsValidImageURI(val) {
 			return errors.New("parameter pre_container_image_uri must be a valid container uri")
+		}
+
+		if !validations.IsApprovedImageURI(val) {
+			return errors.New("parameter pre_container_image_uri must be an approved image uri")
 		}
 	}
 
@@ -93,9 +102,6 @@ func (req CreateWorkflow) validateArguments() error {
 type CreateGitWorkflow struct {
 	CommitHash string `json:"sha" valid:"required~sha is required,alphanum~sha must be alphanumeric"`
 	Path       string `json:"path" valid:"required~path is required"`
-	// We don't validate the specific type as it's dynamic and can only be done
-	// server side.
-	Type string `json:"type" valid:"required~type is required"`
 }
 
 // Validate validates CreateGitWorkflow.
@@ -104,53 +110,7 @@ func (req CreateGitWorkflow) Validate() error {
 }
 
 // CreateTarget request.
-type CreateTarget struct {
-	Name       string           `json:"name" valid:"required~name is required,alphanumunderscore~name must be alphanumeric underscore,stringlength(4|32)~name must be between 4 and 32 characters"`
-	Properties TargetProperties `json:"properties"`
-	Type       string           `json:"type" valid:"required~type is required"`
-}
-
-// Validate validates CreateTarget.
-func (req CreateTarget) Validate() error {
-	v := []func() error{
-		func() error { return validations.ValidateStruct(req) },
-		func() error {
-			if req.Type != "aws_account" {
-				return errors.New("type must be one of 'aws_account'")
-			}
-			return nil
-		},
-		req.validateTargetProperties,
-	}
-
-	return validations.Validate(v...)
-}
-
-func (req CreateTarget) validateTargetProperties() error {
-	if err := validations.ValidateStruct(req.Properties); err != nil {
-		return err
-	}
-
-	if req.Properties.CredentialType != "assumed_role" {
-		return errors.New("credential_type must be one of 'assumed_role'")
-	}
-
-	if !validations.IsValidARN(req.Properties.RoleArn) {
-		return errors.New("role_arn must be a valid arn")
-	}
-
-	if len(req.Properties.PolicyArns) > 5 {
-		return errors.New("policy_arns cannot be more than 5")
-	}
-
-	for _, arn := range req.Properties.PolicyArns {
-		if !validations.IsValidARN(arn) {
-			return errors.New("policy_arns contains an invalid arn")
-		}
-	}
-
-	return nil
-}
+type CreateTarget types.Target
 
 // CreateProject request.
 type CreateProject struct {
@@ -173,14 +133,6 @@ func (req CreateProject) Validate() error {
 	return validations.Validate(v...)
 }
 
-// TargetProperties for target requests.
-type TargetProperties struct {
-	CredentialType string   `json:"credential_type" valid:"required~credential_type is required"`
-	PolicyArns     []string `json:"policy_arns"`
-	PolicyDocument string   `json:"policy_document"`
-	RoleArn        string   `json:"role_arn" valid:"required~role_arn is required"`
-}
-
 // TargetOperation represents a target operation request.
 // TODO evaluate this vs. CreateGitWorkflow.
 type TargetOperation struct {
@@ -194,4 +146,9 @@ type TargetOperation struct {
 // Validate validates TargetOperation.
 func (req TargetOperation) Validate() error {
 	return validations.ValidateStruct(req)
+}
+
+// UpdateTarget request.
+type UpdateTarget struct {
+	Properties types.TargetProperties `json:"properties"`
 }

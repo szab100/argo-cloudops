@@ -4,7 +4,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.14.0] - 2022-07-08
+### Added
+* Added schema updates to create tokens table
+* Added golang-migrate to manage schema
+* Delete project token
+* List project tokens
+* Create project token
+
+## [0.13.3] - 2022-06-16
+### Changed
+* Added github repository from db to get projects response
+
+## [0.13.2] - 2022-06-09
+### Changed
+* Fixed quickstart issues with standing up database
+* Added log statement to clarify issues with project creation
+
+## [0.13.1] - 2022-05-24
+### Changed
+* The default config file has been renamed to cello.yaml (when the CONFIG env var is NOT specified)
+
+## [0.13.0] - 2022-05-02
+### Changed
+* Default workflow renamed from argo-cloudops-single-step-vault-aws.yaml to cello-single-step-vault-aws.yaml
+* Example manifests now point to cello-single-step-vault-aws workflow
+* Images moved to from argocloudops to celloproj
+* BREAKING cli binary renamed from argo-cloudops to cello
+* Environment variables prefix changed from ARGO_CLOUDOPS to CELLO (backwards compatible)
+
+## [0.12.1] - 2022-03-14
+### Changed
+* POTENTIALLY BREAKING Release tarballs use cello naming, potentially breaking change for automation scripts
+
+## [0.12.0] - 2022-03-10
+### Changed
+* Reference renames all around to support new cello-proj/cello repository location.
+
+## [0.11.0] - 2022-03-01
+### Added
+* Add target update api operation
+
+### Changed
+* Change get target api response
+
+### Fixed
+* Validate project exists when listing targets
+
+## [0.10.0] - 2022-01-26
+* Add `exec` type/command
+
+## [0.9.0] - 2021-12-14
+### Added
+* Approve list for pre and execute image URIs.
+
+## [0.8.5] - 2021-10-22
+### Added
+* Retry logging on stream INTERNAL_ERROR errors
+
+## [0.8.4] - 2021-10-21
+### Added
+* Add `X-Accel-Buffering=no` header to service response calls for log streaming.
+
+## [0.8.3] - 2021-10-05
 ### Changed
 * Bump github.com/argoproj/argo-workflows/v3 from 3.1.8 to 3.1.13.
 * Bump github.com/aws/aws-sdk-go from 1.40.51 to 1.40.52.
@@ -15,6 +77,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Bump google.golang.org/grpc from 1.40.0 to 1.41.0.
 * Migrated github.com/go-kit/kit to github.com/go-kit/log.
 * Update to go 1.17.1.
+
+### Fixed
+* Nil pointer error on bad auth header.
+* Revert http listen and serve tls.
 
 ## [0.8.2] - 2021-09-28
 ### Added

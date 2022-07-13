@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/cello-proj/cello/internal/validations"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +21,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				TargetName:           "target1",
@@ -39,8 +41,8 @@ func TestCreateWorkflowValidate(t *testing.T) {
 				},
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
-					"pre_container_image_uri":     "argoproj-labs/argo-cloudops-pre",
+					"execute_container_image_uri": "cello-proj/cello-exec",
+					"pre_container_image_uri":     "cello-proj/cello-pre",
 				},
 				ProjectName:          "project1",
 				TargetName:           "target1",
@@ -53,7 +55,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				TargetName:           "target1",
@@ -71,7 +73,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 				},
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				TargetName:           "target1",
@@ -89,7 +91,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 				},
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				TargetName:           "target1",
@@ -106,7 +108,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 				},
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				TargetName:           "target1",
@@ -122,7 +124,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 				},
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				TargetName:           "target1",
@@ -146,7 +148,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"pre_container_image_uri": "argoproj-labs/argo-cloudops-pre",
+					"pre_container_image_uri": "cello-proj/cello-pre",
 				},
 				ProjectName:          "project1",
 				TargetName:           "target1",
@@ -174,7 +176,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 					"pre_container_image_uri":     "./foo/bar",
 				},
 				ProjectName:          "project1",
@@ -185,10 +187,39 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			wantErr: errors.New("parameter pre_container_image_uri must be a valid container uri"),
 		},
 		{
+			name: "rejects unapproved exec container",
+			req: CreateWorkflow{
+				Framework: "cdk",
+				Parameters: map[string]string{
+					"execute_container_image_uri": "badactor-labs/cello-exec",
+				},
+				ProjectName:          "project1",
+				TargetName:           "target1",
+				Type:                 "diff",
+				WorkflowTemplateName: "template1",
+			},
+			wantErr: errors.New("parameter execute_container_image_uri must be an approved image uri"),
+		},
+		{
+			name: "rejects unapproved pre container",
+			req: CreateWorkflow{
+				Framework: "cdk",
+				Parameters: map[string]string{
+					"execute_container_image_uri": "cello-proj/cello-exec",
+					"pre_container_image_uri":     "badactor-labs/cello-exec",
+				},
+				ProjectName:          "project1",
+				TargetName:           "target1",
+				Type:                 "diff",
+				WorkflowTemplateName: "template1",
+			},
+			wantErr: errors.New("parameter pre_container_image_uri must be an approved image uri"),
+		},
+		{
 			name: "missing framework",
 			req: CreateWorkflow{
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				TargetName:           "target1",
@@ -202,7 +233,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				TargetName:           "target1",
@@ -215,7 +246,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				TargetName:           "target1",
 				Type:                 "diff",
@@ -228,7 +259,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "abc",
 				TargetName:           "target1",
@@ -242,7 +273,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "a12345678901234567890123456789012",
 				TargetName:           "target1",
@@ -256,7 +287,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "this-is-invalid",
 				TargetName:           "target1",
@@ -270,7 +301,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				Type:                 "diff",
@@ -283,7 +314,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				TargetName:           "abc",
@@ -297,7 +328,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1",
 				TargetName:           "a12345678901234567890123456789012",
@@ -311,7 +342,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 				},
 				ProjectName:          "project1this",
 				TargetName:           "this-is-invalid",
@@ -325,7 +356,7 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			req: CreateWorkflow{
 				Framework: "cdk",
 				Parameters: map[string]string{
-					"execute_container_image_uri": "argoproj-labs/argo-cloudops-exec",
+					"execute_container_image_uri": "cello-proj/cello-exec",
 					"pre_container_image_uri":     "./foo/bar",
 				},
 				ProjectName: "project1",
@@ -335,6 +366,8 @@ func TestCreateWorkflowValidate(t *testing.T) {
 			wantErr: errors.New("workflow_template_name is required"),
 		},
 	}
+
+	validations.SetImageURIs([]string{"cello-proj/*"})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -359,14 +392,12 @@ func TestCreateGitWorkflowValidate(t *testing.T) {
 			req: CreateGitWorkflow{
 				CommitHash: "8458fd753f9fde51882414564c20df6d4c34a90e",
 				Path:       "./manifest.yaml",
-				Type:       "diff",
 			},
 		},
 		{
 			name: "missing commit hash",
 			req: CreateGitWorkflow{
 				Path: "./manifest.yaml",
-				Type: "diff",
 			},
 			wantErr: errors.New("sha is required"),
 		},
@@ -375,7 +406,6 @@ func TestCreateGitWorkflowValidate(t *testing.T) {
 			req: CreateGitWorkflow{
 				CommitHash: "8--",
 				Path:       "./manifest.yaml",
-				Type:       "diff",
 			},
 			wantErr: errors.New("sha must be alphanumeric"),
 		},
@@ -383,17 +413,8 @@ func TestCreateGitWorkflowValidate(t *testing.T) {
 			name: "missing path",
 			req: CreateGitWorkflow{
 				CommitHash: "8458fd753f9fde51882414564c20df6d4c34a90e",
-				Type:       "diff",
 			},
 			wantErr: errors.New("path is required"),
-		},
-		{
-			name: "missing type",
-			req: CreateGitWorkflow{
-				CommitHash: "8458fd753f9fde51882414564c20df6d4c34a90e",
-				Path:       "./manifest.yaml",
-			},
-			wantErr: errors.New("type is required"),
 		},
 	}
 
@@ -431,208 +452,6 @@ func TestCreateWorkflowValidateType(t *testing.T) {
 				Type: "foo",
 			}
 			assert.Equal(t, tt.wantErr, req.ValidateType(tt.types)())
-		})
-	}
-}
-
-func TestCreateTargetValidate(t *testing.T) {
-	tests := []struct {
-		name    string
-		req     CreateTarget
-		types   []string
-		wantErr error
-	}{
-		{
-			name: "valid minimal",
-			req: CreateTarget{
-				Name: "target1",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					RoleArn:        "arn:aws:iam::012345678901:role/test-role",
-				},
-				Type: "aws_account",
-			},
-		},
-		{
-			name: "valid full",
-			req: CreateTarget{
-				Name: "target1",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					RoleArn:        "arn:aws:iam::012345678901:role/test-role",
-					PolicyDocument: "{ \"Version\": \"2012-10-17\", \"Statement\": [ { \"Effect\": \"Allow\", \"Action\": \"s3:ListBuckets\", \"Resource\": \"*\" } ] }",
-					PolicyArns: []string{
-						"arn:aws:iam::012345678901:policy/test-policy-1",
-						"arn:aws:iam::012345678901:policy/test-policy-2",
-						"arn:aws:iam::012345678901:policy/test-policy-3",
-						"arn:aws:iam::012345678901:policy/test-policy-4",
-						"arn:aws:iam::012345678901:policy/test-policy-5",
-					},
-				},
-				Type: "aws_account",
-			},
-		},
-		{
-			name: "missing name",
-			req: CreateTarget{
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					RoleArn:        "arn:aws:iam::012345678901:role/test-role",
-				},
-				Type: "aws_account",
-			},
-			wantErr: errors.New("name is required"),
-		},
-		{
-			name: "name must be alphanumeric underscore",
-			req: CreateTarget{
-				Name: "this-is-invalid",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					RoleArn:        "arn:aws:iam::012345678901:role/test-role",
-				},
-				Type: "aws_account",
-			},
-			wantErr: errors.New("name must be alphanumeric underscore"),
-		},
-		{
-			name: "too short name",
-			req: CreateTarget{
-				Name: "abc",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					RoleArn:        "arn:aws:iam::012345678901:role/test-role",
-				},
-				Type: "aws_account",
-			},
-			wantErr: errors.New("name must be between 4 and 32 characters"),
-		},
-		{
-			name: "too long name",
-			req: CreateTarget{
-				Name: "a12345678901234567890123456789012",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					RoleArn:        "arn:aws:iam::012345678901:role/test-role",
-				},
-				Type: "aws_account",
-			},
-			wantErr: errors.New("name must be between 4 and 32 characters"),
-		},
-		{
-			name: "missing type",
-			req: CreateTarget{
-				Name: "target1",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					RoleArn:        "arn:aws:iam::012345678901:role/test-role",
-				},
-			},
-			wantErr: errors.New("type is required"),
-		},
-		{
-			name: "invalid type",
-			req: CreateTarget{
-				Name: "target1",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					RoleArn:        "arn:aws:iam::012345678901:role/test-role",
-				},
-				Type: "bad",
-			},
-			wantErr: errors.New("type must be one of 'aws_account'"),
-		},
-		{
-			name: "missing credential_type",
-			req: CreateTarget{
-				Name: "target1",
-				Properties: TargetProperties{
-					RoleArn: "arn:aws:iam::012345678901:role/test-role",
-				},
-				Type: "aws_account",
-			},
-			wantErr: errors.New("credential_type is required"),
-		},
-		{
-			name: "invalid credential_type",
-			req: CreateTarget{
-				Name: "target1",
-				Properties: TargetProperties{
-					CredentialType: "bad",
-					RoleArn:        "arn:aws:iam::012345678901:role/test-role",
-				},
-				Type: "aws_account",
-			},
-			wantErr: errors.New("credential_type must be one of 'assumed_role'"),
-		},
-		{
-			name: "missing role_arn",
-			req: CreateTarget{
-				Name: "target1",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-				},
-				Type: "aws_account",
-			},
-			wantErr: errors.New("role_arn is required"),
-		},
-		{
-			name: "role_arn must be an arn",
-			req: CreateTarget{
-				Name: "target1",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					RoleArn:        "not-an-arn",
-				},
-				Type: "aws_account",
-			},
-			wantErr: errors.New("role_arn must be a valid arn"),
-		},
-		{
-			name: "too many policy arns",
-			req: CreateTarget{
-				Name: "target1",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					PolicyArns: []string{
-						"arn:aws:iam::012345678901:policy/test-policy-1",
-						"arn:aws:iam::012345678901:policy/test-policy-2",
-						"arn:aws:iam::012345678901:policy/test-policy-3",
-						"arn:aws:iam::012345678901:policy/test-policy-4",
-						"arn:aws:iam::012345678901:policy/test-policy-5",
-						"arn:aws:iam::012345678901:policy/test-policy-6",
-					},
-					RoleArn: "arn:aws:iam::012345678901:role/test-role",
-				},
-				Type: "aws_account",
-			},
-			wantErr: errors.New("policy_arns cannot be more than 5"),
-		},
-		{
-			name: "policy arns must be valid",
-			req: CreateTarget{
-				Name: "target1",
-				Properties: TargetProperties{
-					CredentialType: "assumed_role",
-					PolicyArns: []string{
-						"arn:aws:iam::012345678901:policy/test-policy-1",
-						"not-an-arn",
-					},
-					RoleArn: "arn:aws:iam::012345678901:role/test-role",
-				},
-				Type: "aws_account",
-			},
-			wantErr: errors.New("policy_arns contains an invalid arn"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.wantErr != nil {
-				assert.EqualError(t, tt.req.Validate(), tt.wantErr.Error())
-			} else {
-				assert.Equal(t, tt.wantErr, tt.req.Validate())
-			}
 		})
 	}
 }
@@ -709,13 +528,13 @@ func TestCreateProjectValidate(t *testing.T) {
 			name: "valid",
 			req: CreateProject{
 				Name:       "project1",
-				Repository: "https://github.com/argoproj-labs/argo-cloudops.git",
+				Repository: "https://github.com/cello-proj/cello.git",
 			},
 		},
 		{
 			name: "missing name",
 			req: CreateProject{
-				Repository: "https://github.com/argoproj-labs/argo-cloudops.git",
+				Repository: "https://github.com/cello-proj/cello.git",
 			},
 			wantErr: errors.New("name is required"),
 		},
@@ -723,7 +542,7 @@ func TestCreateProjectValidate(t *testing.T) {
 			name: "name must be alphanumeric",
 			req: CreateProject{
 				Name:       "this-is-invalid",
-				Repository: "https://github.com/argoproj-labs/argo-cloudops.git",
+				Repository: "https://github.com/cello-proj/cello.git",
 			},
 			wantErr: errors.New("name must be alphanumeric"),
 		},
@@ -731,7 +550,7 @@ func TestCreateProjectValidate(t *testing.T) {
 			name: "too short name",
 			req: CreateProject{
 				Name:       "abc",
-				Repository: "https://github.com/argoproj-labs/argo-cloudops.git",
+				Repository: "https://github.com/cello-proj/cello.git",
 			},
 			wantErr: errors.New("name must be between 4 and 32 characters"),
 		},
@@ -739,7 +558,7 @@ func TestCreateProjectValidate(t *testing.T) {
 			name: "too long name",
 			req: CreateProject{
 				Name:       "a12345678901234567890123456789012",
-				Repository: "https://github.com/argoproj-labs/argo-cloudops.git",
+				Repository: "https://github.com/cello-proj/cello.git",
 			},
 			wantErr: errors.New("name must be between 4 and 32 characters"),
 		},

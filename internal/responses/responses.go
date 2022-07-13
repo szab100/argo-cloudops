@@ -1,7 +1,23 @@
 package responses
 
+// CreateProject represents the responses for CreateProject.
+type CreateProject struct {
+	Token   string `json:"token"`
+	TokenID string `json:"token_id"`
+}
+
+// CreateToken represents the responses for CreateToken.
+type CreateToken struct {
+	CreatedAt string `json:"created_at"`
+	Token     string `json:"token"`
+	TokenID   string `json:"token_id"`
+}
+
 // Diff represents the responses for Diff.
 type Diff TargetOperation
+
+// Exec represents the responses for Exec.
+type Exec TargetOperation
 
 // ExecuteWorkflow represents the responses for ExecuteWorkflow.
 type ExecuteWorkflow struct {
@@ -15,12 +31,8 @@ type GetLogs struct {
 
 // GetProject represents the responses for GetProject.
 type GetProject struct {
-	Name string `json:"name"`
-}
-
-// GetTarget represents the responses for GetTarget.
-type GetTarget struct {
-	Name string `json:"name"`
+	Name       string `json:"name"`
+	Repository string `json:"repository"`
 }
 
 // GetWorkflows represents the responses for GetWorkflows.
@@ -34,18 +46,17 @@ type GetWorkflowStatus struct {
 	Finished string `json:"finished"`
 }
 
+// ListTokens represents the responses for ListTokens.
+type ListTokens struct {
+	CreatedAt string `json:"created_at"`
+	ProjectID string `json:"project,omitempty"`
+	TokenID   string `json:"token_id"`
+}
+
 // Sync represents the responses for Sync.
 type Sync TargetOperation
 
 // TargetOperation represents the output to a targetOperation.
 type TargetOperation struct {
 	WorkflowName string `json:"workflow_name"`
-}
-
-// TargetProperties represents the responses for Targetproperties.
-type TargetProperties struct {
-	CredentialType string   `json:"credential_type"`
-	PolicyArns     []string `json:"policy_arns"`
-	PolicyDocument string   `json:"policy_document"`
-	RoleArn        string   `json:"role_arn"`
 }

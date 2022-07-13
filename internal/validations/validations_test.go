@@ -86,12 +86,12 @@ func TestIsValidGitURI(t *testing.T) {
 	}{
 		{
 			name:       "valid https",
-			testString: "https://github.com/argoproj-labs/argo-cloudops.git",
+			testString: "https://github.com/cello-proj/cello.git",
 			want:       true,
 		},
 		{
 			name:       "valid git",
-			testString: "git@github.com:argoproj-labs/argo-cloudops.git",
+			testString: "git@github.com:cello-proj/cello.git",
 			want:       true,
 		},
 		{
@@ -101,7 +101,7 @@ func TestIsValidGitURI(t *testing.T) {
 		},
 		{
 			name:       "invalid shorthand",
-			testString: "argoproj-labs/argo-cloudops",
+			testString: "cello-proj/cello",
 		},
 	}
 
@@ -120,12 +120,12 @@ func TestIsValidImageURI(t *testing.T) {
 	}{
 		{
 			name:       "valid execute container image",
-			testString: "argocloudops/argo-cloudops-cdk:1.87.1",
+			testString: "celloproj/cello-cdk:1.87.1",
 			want:       true,
 		},
 		{
 			name:       "invalid execute container image",
-			testString: "()argocloudops  -- /argo-cloudops-cdk:1.87.1",
+			testString: "()cello  -- /cello-cdk:1.87.1",
 		},
 		{
 			name: "no image provided",
@@ -135,6 +135,59 @@ func TestIsValidImageURI(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, IsValidImageURI(tt.testString))
+		})
+	}
+}
+
+func TestIsApprovedImageURI(t *testing.T) {
+	tests := []struct {
+		name       string
+		testString string
+		want       bool
+		uris       []string
+	}{
+		{
+			name:       "default allow-all passes",
+			testString: "celloproj/cello-cdk:1.87.1",
+			want:       true,
+		},
+		{
+			name:       "default allow-all passes with multi-separator",
+			testString: "docker.myco.com/slash1/celloproj/slash2/cello-cdk:latest",
+			want:       true,
+			uris:       []string{},
+		},
+		{
+			name:       "direct matched image from config passes",
+			testString: "cello/match:1.87.1",
+			want:       true,
+			uris:       []string{"cello/match:1.87.1"},
+		},
+		{
+			name:       "rejects non-approved image",
+			testString: "cello/nomatch:1.87.1",
+			want:       false,
+			uris:       []string{"cello/match:1.87.1"},
+		},
+		{
+			name:       "matches globbing on tag",
+			testString: "cello/match:1.87.1",
+			want:       true,
+			uris:       []string{"cello/match:*"},
+		},
+		{
+			name:       "matches globbing on any image within a registry",
+			testString: "docker.myco.com/cello/match:1.87.1",
+			want:       true,
+			uris:       []string{"docker.myco.com/*/*"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			SetImageURIs(tt.uris)
+
+			assert.Equal(t, tt.want, IsApprovedImageURI(tt.testString))
 		})
 	}
 }

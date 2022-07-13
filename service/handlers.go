@@ -3,22 +3,30 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
 
-	"github.com/argoproj-labs/argo-cloudops/internal/requests"
-	"github.com/argoproj-labs/argo-cloudops/service/internal/credentials"
-	"github.com/argoproj-labs/argo-cloudops/service/internal/db"
-	"github.com/argoproj-labs/argo-cloudops/service/internal/env"
-	"github.com/argoproj-labs/argo-cloudops/service/internal/git"
-	"github.com/argoproj-labs/argo-cloudops/service/internal/workflow"
+	"github.com/cello-proj/cello/internal/requests"
+	"github.com/cello-proj/cello/internal/responses"
+	"github.com/cello-proj/cello/internal/types"
+	"github.com/cello-proj/cello/service/internal/credentials"
+	"github.com/cello-proj/cello/service/internal/db"
+	"github.com/cello-proj/cello/service/internal/env"
+	"github.com/cello-proj/cello/service/internal/git"
+	"github.com/cello-proj/cello/service/internal/workflow"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
+	upper "github.com/upper/db/v4"
 	"gopkg.in/yaml.v2"
+)
+
+const (
+	numOfTokensLimit = 2
 )
 
 // Represents a JWT token.
@@ -150,7 +158,11 @@ func (h handler) createWorkflowFromGit(w http.ResponseWriter, r *http.Request) {
 
 	level.Debug(l).Log("message", "validating authorization header for create workflow from git")
 	ah := r.Header.Get("Authorization")
-	a := credentials.NewAuthorization(ah)
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
 	// TODO we need to ensure this _isn't an admin...
 	if err := a.Validate(); err != nil {
 		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
@@ -198,7 +210,6 @@ func (h handler) createWorkflowFromGit(w http.ResponseWriter, r *http.Request) {
 	log.With(l, "project", cwr.ProjectName, "target", cwr.TargetName, "framework", cwr.Framework, "type", cwr.Type, "workflow-template", cwr.WorkflowTemplateName)
 
 	level.Debug(l).Log("message", "creating workflow")
-	cwr.Type = cgwr.Type
 	h.createWorkflowFromRequest(ctx, w, r, a, cwr, l)
 }
 
@@ -210,7 +221,11 @@ func (h handler) createWorkflow(w http.ResponseWriter, r *http.Request) {
 
 	level.Debug(l).Log("message", "validating authorization header for create workflow")
 	ah := r.Header.Get("Authorization")
-	a := credentials.NewAuthorization(ah)
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
 	if err := a.Validate(); err != nil {
 		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
 		return
@@ -314,7 +329,8 @@ func (h handler) createWorkflowFromRequest(_ context.Context, w http.ResponseWri
 		return
 	}
 	if !targetExists {
-		h.errorResponse(w, fmt.Sprintf("target '%s' does not exist for project `%s`", cwr.TargetName, cwr.ProjectName), http.StatusBadRequest)
+		level.Error(l).Log("message", "target not found")
+		h.errorResponse(w, "target not found", http.StatusBadRequest)
 		return
 	}
 
@@ -372,7 +388,7 @@ func (h handler) getWorkflow(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(jsonData))
 }
 
-// Gets a workflow
+// Gets a target
 func (h handler) getTarget(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	projectName := vars["projectName"]
@@ -382,7 +398,11 @@ func (h handler) getTarget(w http.ResponseWriter, r *http.Request) {
 
 	level.Debug(l).Log("message", "validating authorization header for get target")
 	ah := r.Header.Get("Authorization")
-	a := credentials.NewAuthorization(ah)
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
 	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
 		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
 		return
@@ -393,6 +413,19 @@ func (h handler) getTarget(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		level.Error(l).Log("message", "error creating credentials provider", "error", err)
 		h.errorResponse(w, "error creating credentials provider", http.StatusInternalServerError)
+		return
+	}
+
+	targetExists, err := cp.TargetExists(projectName, targetName)
+	if err != nil {
+		level.Error(l).Log("message", "error retrieving target", "error", err)
+		h.errorResponse(w, "error retrieving target", http.StatusInternalServerError)
+		return
+	}
+
+	if !targetExists {
+		level.Error(l).Log("message", "target not found")
+		h.errorResponse(w, "target not found", http.StatusNotFound)
 		return
 	}
 
@@ -441,6 +474,7 @@ func (h handler) getWorkflowLogs(w http.ResponseWriter, r *http.Request) {
 // Streams workflow logs
 func (h handler) getWorkflowLogStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("X-Accel-Buffering", "no")
 	vars := mux.Vars(r)
 	workflowName := vars["workflowName"]
 
@@ -456,10 +490,43 @@ func (h handler) getWorkflowLogStream(w http.ResponseWriter, r *http.Request) {
 }
 
 // Returns a new token
-func newArgoCloudOpsToken(provider, key, secret string) *token {
+func newCelloToken(provider, key, secret string) *token {
 	return &token{
 		Token: fmt.Sprintf("%s:%s:%s", provider, key, secret),
 	}
+}
+
+// projectExists checks if a project exists using both the credential provider and database
+func (h handler) projectExists(ctx context.Context, l log.Logger, cp credentials.Provider, w http.ResponseWriter, projectName string) (bool, error) {
+
+	// Checking credential provider
+	level.Debug(l).Log("message", "checking if project exists")
+	projectExists, err := cp.ProjectExists(projectName)
+	if err != nil {
+		level.Error(l).Log("message", "error checking credentials provider for project", "error", err)
+		h.errorResponse(w, "error retrieving project", http.StatusInternalServerError)
+		return false, err
+	}
+
+	if !projectExists {
+		level.Debug(l).Log("message", "project does not exist in credentials provider")
+		h.errorResponse(w, "project does not exist", http.StatusNotFound)
+		return false, err
+	}
+
+	// Checking database
+	_, err = h.dbClient.ReadProjectEntry(ctx, projectName)
+	if err != nil {
+		level.Error(l).Log("message", "error retrieving project from database", "error", err)
+		if errors.Is(err, upper.ErrNoMoreRows) {
+			h.errorResponse(w, "project does not exist", http.StatusNotFound)
+		} else {
+			h.errorResponse(w, "error retrieving project", http.StatusInternalServerError)
+		}
+		return false, err
+	}
+
+	return true, err
 }
 
 // Creates a project
@@ -468,7 +535,11 @@ func (h handler) createProject(w http.ResponseWriter, r *http.Request) {
 
 	level.Debug(l).Log("message", "validating authorization header for create project")
 	ah := r.Header.Get("Authorization")
-	a := credentials.NewAuthorization(ah)
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
 	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
 		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
 		return
@@ -523,26 +594,39 @@ func (h handler) createProject(w http.ResponseWriter, r *http.Request) {
 		Repository: capp.Repository,
 	})
 	if err != nil {
+		level.Error(l).Log("message", "error inserting project to db", "error", err)
 		h.errorResponse(w, "error creating project", http.StatusInternalServerError)
 		return
 	}
 	level.Debug(l).Log("message", "creating project")
-	role, secret, err := cp.CreateProject(capp.Name)
+	role, secret, secretAccessor, err := cp.CreateProject(capp.Name)
 	if err != nil {
 		level.Error(l).Log("message", "error creating project", "error", err)
 		h.errorResponse(w, "error creating project", http.StatusInternalServerError)
 		return
 	}
 
-	level.Debug(l).Log("message", "retrieving Argo CloudOps token")
-	t := newArgoCloudOpsToken("vault", role, secret)
-	jsonResult, err := json.Marshal(t)
+	level.Debug(l).Log("message", "inserting token into DB")
+	_, err = h.dbClient.CreateTokenEntry(ctx, capp.Name, secretAccessor)
 	if err != nil {
+		level.Error(l).Log("message", "error inserting token into DB", "error", err)
+		h.errorResponse(w, "error creating token", http.StatusInternalServerError)
+		return
+	}
+
+	level.Debug(l).Log("message", "retrieving Cello token")
+	token := newCelloToken("vault", role, secret)
+
+	resp := responses.CreateProject{
+		Token:   token.Token,
+		TokenID: secretAccessor,
+	}
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		level.Error(l).Log("message", "error serializing token", "error", err)
 		h.errorResponse(w, "error serializing token", http.StatusInternalServerError)
 		return
 	}
-	fmt.Fprint(w, string(jsonResult))
 }
 
 // Get a project
@@ -554,36 +638,39 @@ func (h handler) getProject(w http.ResponseWriter, r *http.Request) {
 
 	level.Debug(l).Log("message", "validating authorization header for get project")
 	ah := r.Header.Get("Authorization")
-	a := credentials.NewAuthorization(ah)
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
 	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
 		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
 		return
 	}
 
-	level.Debug(l).Log("message", "creating credential provider")
-	cp, err := h.newCredentialsProvider(*a, h.env, r.Header, credentials.NewVaultConfig, credentials.NewVaultSvc)
-	if err != nil {
-		level.Error(l).Log("message", "error creating credentials provider", "error", err)
-		h.errorResponse(w, "error creating credentials provider", http.StatusInternalServerError)
-		return
-	}
-
-	level.Debug(l).Log("message", "getting project")
-	resp, err := cp.GetProject(projectName)
+	level.Debug(l).Log("message", "getting project from database")
+	ctx := r.Context()
+	projectEntry, err := h.dbClient.ReadProjectEntry(ctx, projectName)
 	if err != nil {
 		level.Error(l).Log("message", "error retrieving project", "error", err)
-		h.errorResponse(w, "error retrieving project", http.StatusNotFound)
+		if errors.Is(err, upper.ErrNoMoreRows) {
+			h.errorResponse(w, "error retrieving project", http.StatusNotFound)
+		} else {
+			h.errorResponse(w, "error retrieving project", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	data, err := json.Marshal(resp)
-	if err != nil {
+	resp := responses.GetProject{
+		Name:       projectName,
+		Repository: projectEntry.Repository,
+	}
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		level.Error(l).Log("message", "error creating response", "error", err)
 		h.errorResponse(w, "error creating response object", http.StatusInternalServerError)
 		return
 	}
-
-	fmt.Fprint(w, string(data))
 }
 
 // Delete a project
@@ -597,7 +684,11 @@ func (h handler) deleteProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	ah := r.Header.Get("Authorization")
-	a := credentials.NewAuthorization(ah)
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
 	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
 		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
 		return
@@ -663,7 +754,11 @@ func (h handler) createTarget(w http.ResponseWriter, r *http.Request) {
 
 	level.Debug(l).Log("message", "validating authorization header for create target")
 	ah := r.Header.Get("Authorization")
-	a := credentials.NewAuthorization(ah)
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
+		return
+	}
 	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
 		h.errorResponse(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -683,7 +778,7 @@ func (h handler) createTarget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ctr.Validate(); err != nil {
+	if err := types.Target(ctr).Validate(); err != nil {
 		level.Error(l).Log("message", "error invalid request", "error", err)
 		h.errorResponse(w, fmt.Sprintf("invalid request, %s", err), http.StatusBadRequest)
 		return
@@ -711,7 +806,12 @@ func (h handler) createTarget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetExists, _ := cp.TargetExists(projectName, ctr.Name)
+	targetExists, err := cp.TargetExists(projectName, ctr.Name)
+	if err != nil {
+		level.Error(l).Log("message", "error retrieving target", "error", err)
+		h.errorResponse(w, "error retrieving target", http.StatusInternalServerError)
+		return
+	}
 	if targetExists {
 		level.Error(l).Log("message", "target name must not already exist")
 		h.errorResponse(w, "target name must not already exist", http.StatusBadRequest)
@@ -719,13 +819,12 @@ func (h handler) createTarget(w http.ResponseWriter, r *http.Request) {
 	}
 
 	level.Debug(l).Log("message", "creating target")
-	err = cp.CreateTarget(projectName, ctr)
+	err = cp.CreateTarget(projectName, types.Target(ctr))
 	if err != nil {
 		level.Error(l).Log("message", "error creating target", "error", err)
 		h.errorResponse(w, "error creating target", http.StatusInternalServerError)
 		return
 	}
-
 	fmt.Fprint(w, "{}")
 }
 
@@ -739,7 +838,11 @@ func (h handler) deleteTarget(w http.ResponseWriter, r *http.Request) {
 
 	level.Debug(l).Log("message", "validating authorization header for delete target")
 	ah := r.Header.Get("Authorization")
-	a := credentials.NewAuthorization(ah)
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
 	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
 		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
 		return
@@ -771,7 +874,11 @@ func (h handler) listTargets(w http.ResponseWriter, r *http.Request) {
 
 	level.Debug(l).Log("message", "validating authorization header for target list")
 	ah := r.Header.Get("Authorization")
-	a := credentials.NewAuthorization(ah)
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
 	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
 		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
 		return
@@ -782,6 +889,20 @@ func (h handler) listTargets(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		level.Error(l).Log("message", "error creating credentials provider", "error", err)
 		h.errorResponse(w, "error creating credentials provider", http.StatusInternalServerError)
+		return
+	}
+
+	level.Debug(l).Log("message", "checking if project exists")
+	projectExists, err := cp.ProjectExists(projectName)
+	if err != nil {
+		level.Error(l).Log("message", "error checking project", "error", err)
+		h.errorResponse(w, "error checking project", http.StatusInternalServerError)
+		return
+	}
+
+	if !projectExists {
+		level.Debug(l).Log("message", "project does not exist")
+		h.errorResponse(w, "project does not exist", http.StatusNotFound)
 		return
 	}
 
@@ -800,6 +921,321 @@ func (h handler) listTargets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprint(w, string(data))
+}
+
+// Updates a target
+func (h handler) updateTarget(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projectName := vars["projectName"]
+	targetName := vars["targetName"]
+
+	l := h.requestLogger(r, "op", "update-target", "project", projectName, "target", targetName)
+
+	level.Debug(l).Log("message", "validating authorization header for update target")
+	ah := r.Header.Get("Authorization")
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
+		return
+	}
+	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
+		h.errorResponse(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	level.Debug(l).Log("message", "creating credential provider")
+	cp, err := h.newCredentialsProvider(*a, h.env, r.Header, credentials.NewVaultConfig, credentials.NewVaultSvc)
+	if err != nil {
+		level.Error(l).Log("message", "error creating credentials provider", "error", err)
+		h.errorResponse(w, "error creating credentials provider", http.StatusInternalServerError)
+		return
+	}
+
+	projectExists, err := cp.ProjectExists(projectName)
+	if err != nil {
+		level.Error(l).Log("message", "error determining if project exists", "error", err)
+		h.errorResponse(w, "error creating credentials provider", http.StatusInternalServerError)
+		return
+	}
+
+	if !projectExists {
+		level.Error(l).Log("message", "project does not exist")
+		h.errorResponse(w, "project does not exist", http.StatusNotFound)
+		return
+	}
+
+	targetExists, err := cp.TargetExists(projectName, targetName)
+	if err != nil {
+		level.Error(l).Log("message", "error retrieving target", "error", err)
+		h.errorResponse(w, "error retrieving target", http.StatusInternalServerError)
+		return
+	}
+	if !targetExists {
+		level.Error(l).Log("message", "target not found")
+		h.errorResponse(w, "target not found", http.StatusNotFound)
+		return
+	}
+
+	target, err := cp.GetTarget(projectName, targetName)
+	if err != nil {
+		level.Error(l).Log("message", "error retrieving existing target")
+		h.errorResponse(w, "error retrieving target", http.StatusInternalServerError)
+		return
+	}
+	targetType := target.Type
+
+	level.Debug(l).Log("message", "reading request body")
+	reqBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		level.Error(l).Log("message", "error reading request data", "error", err)
+		h.errorResponse(w, "error reading request data", http.StatusInternalServerError)
+		return
+	}
+
+	// merge request data into existing target struct for update data
+	if err := json.Unmarshal(reqBody, &target); err != nil {
+		level.Error(l).Log("message", "error reading target properties data", "error", err)
+		h.errorResponse(w, "error reading target properties data", http.StatusInternalServerError)
+		return
+	}
+	// overwrite updated target with existing target name and type values so request body doesn't overwrite these values
+	target.Name = targetName
+	target.Type = targetType
+
+	if err := target.Validate(); err != nil {
+		level.Error(l).Log("message", "error invalid request", "error", err)
+		h.errorResponse(w, fmt.Sprintf("invalid request, %s", err), http.StatusBadRequest)
+		return
+	}
+
+	level.Debug(l).Log("message", "updating target")
+	err = cp.UpdateTarget(projectName, target)
+	if err != nil {
+		level.Error(l).Log("message", "error updating target", "error", err)
+		h.errorResponse(w, "error updating target", http.StatusInternalServerError)
+		return
+	}
+
+	data, err := json.Marshal(target)
+	if err != nil {
+		level.Error(l).Log("message", "error creating response", "error", err)
+		h.errorResponse(w, "error creating response object", http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Fprint(w, string(data))
+}
+
+func (h handler) deleteToken(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projectName := vars["projectName"]
+	tokenID := vars["tokenID"]
+
+	l := h.requestLogger(r, "op", "delete-token", "project", projectName, "tokenID", tokenID)
+
+	level.Debug(l).Log("message", "validating authorization header for delete token")
+
+	ah := r.Header.Get("Authorization")
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
+	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
+		return
+	}
+
+	level.Debug(l).Log("message", "creating credential provider")
+	cp, err := h.newCredentialsProvider(*a, h.env, r.Header, credentials.NewVaultConfig, credentials.NewVaultSvc)
+	if err != nil {
+		level.Error(l).Log("message", "error creating credentials provider", "error", err)
+		h.errorResponse(w, "error creating credentials provider", http.StatusInternalServerError)
+		return
+	}
+
+	ctx := r.Context()
+
+	level.Debug(l).Log("message", "checking if project exists")
+	projectExists, err := h.projectExists(ctx, l, cp, w, projectName)
+
+	if err != nil || !projectExists {
+		return
+	}
+
+	// check if token exists in CP and DB
+	projectToken, err := cp.GetProjectToken(projectName, tokenID)
+	if err != nil {
+		level.Error(l).Log("message", "error retrieving token from credentials provider", "error", err)
+		h.errorResponse(w, "error retrieving token", http.StatusInternalServerError)
+		return
+	}
+
+	if projectToken == (types.ProjectToken{}) {
+		level.Error(l).Log("message", "token does not exist in credential provider", "error", err)
+		h.errorResponse(w, "token does not exist", http.StatusNotFound)
+		return
+	}
+
+	if _, err = h.dbClient.ReadTokenEntry(ctx, tokenID); err != nil {
+		if errors.Is(err, upper.ErrNoMoreRows) {
+			level.Error(l).Log("message", "token does not exist in DB", "error", err)
+			h.errorResponse(w, "token does not exist", http.StatusNotFound)
+			return
+		}
+		level.Error(l).Log("message", "error retrieving token from DB", "error", err)
+		h.errorResponse(w, "error retrieving token", http.StatusInternalServerError)
+		return
+	}
+
+	// delete token from DB and CP
+	level.Debug(l).Log("message", "deleting token from database")
+	if err = h.dbClient.DeleteTokenEntry(ctx, tokenID); err != nil {
+		level.Error(l).Log("message", "error deleting token from database", "error", err)
+		h.errorResponse(w, "error deleting token", http.StatusInternalServerError)
+		return
+	}
+
+	level.Debug(l).Log("message", "deleting token from credentials provider")
+	if err = cp.DeleteProjectToken(projectName, tokenID); err != nil {
+		level.Error(l).Log("message", "error deleting token from credentials provider", "error", err)
+		h.errorResponse(w, "error deleting token", http.StatusInternalServerError)
+	}
+}
+
+// Creates a token
+func (h handler) createToken(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projectName := vars["projectName"]
+
+	l := h.requestLogger(r, "op", "create-token", "project", projectName)
+
+	level.Debug(l).Log("message", "validating authorization header for token create")
+	ah := r.Header.Get("Authorization")
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
+	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
+		return
+	}
+
+	ctx := r.Context()
+
+	level.Debug(l).Log("message", "creating credential provider")
+	cp, err := h.newCredentialsProvider(*a, h.env, r.Header, credentials.NewVaultConfig, credentials.NewVaultSvc)
+	if err != nil {
+		level.Error(l).Log("message", "error creating credentials provider", "error", err)
+		h.errorResponse(w, "error creating credentials provider", http.StatusInternalServerError)
+		return
+	}
+	projectExists, err := h.projectExists(ctx, l, cp, w, projectName)
+
+	if err != nil || !projectExists {
+		return
+	}
+
+	tokens, err := h.dbClient.ListTokenEntries(ctx, projectName)
+	if err != nil {
+		level.Error(l).Log("message", "error listing tokens from DB", "error", err)
+		h.errorResponse(w, "error listing tokens", http.StatusInternalServerError)
+		return
+	}
+
+	if len(tokens) >= numOfTokensLimit {
+		level.Error(l).Log("message", "number of tokens allowed per project has been reached")
+		h.errorResponse(w, "token limit reached", http.StatusInternalServerError)
+		return
+	}
+
+	level.Debug(l).Log("message", "creating token")
+	role, secret, secretAccessor, err := cp.CreateToken(projectName)
+	if err != nil {
+		level.Error(l).Log("message", "error creating token with credentials provider", "error", err)
+		h.errorResponse(w, "error creating token with credentials provider", http.StatusInternalServerError)
+		return
+	}
+
+	level.Debug(l).Log("message", "inserting into db")
+	te, err := h.dbClient.CreateTokenEntry(ctx, projectName, secretAccessor)
+	if err != nil {
+		level.Error(l).Log("message", "error inserting token to db", "error", err)
+		h.errorResponse(w, "error creating token", http.StatusInternalServerError)
+		return
+	}
+
+	token := newCelloToken("vault", role, secret)
+
+	resp := responses.CreateToken{
+		CreatedAt: te.CreatedAt,
+		Token:     token.Token,
+		TokenID:   te.TokenID,
+	}
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		level.Error(l).Log("message", "error serializing project token", "error", err)
+		h.errorResponse(w, "error listing project tokens", http.StatusInternalServerError)
+		return
+	}
+}
+
+// Lists tokens for a project
+func (h handler) listTokens(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projectName := vars["projectName"]
+
+	l := h.requestLogger(r, "op", "list-tokens", "project", projectName)
+
+	level.Debug(l).Log("message", "validating authorization header for token list")
+	ah := r.Header.Get("Authorization")
+	a, err := credentials.NewAuthorization(ah)
+	if err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header format", http.StatusUnauthorized)
+		return
+	}
+	if err := a.Validate(a.ValidateAuthorizedAdmin(h.env.AdminSecret)); err != nil {
+		h.errorResponse(w, "error unauthorized, invalid authorization header", http.StatusUnauthorized)
+		return
+	}
+
+	ctx := r.Context()
+
+	level.Debug(l).Log("message", "creating credential provider")
+	cp, err := h.newCredentialsProvider(*a, h.env, r.Header, credentials.NewVaultConfig, credentials.NewVaultSvc)
+	if err != nil {
+		level.Error(l).Log("message", "error creating credentials provider", "error", err)
+		h.errorResponse(w, "error creating credentials provider", http.StatusInternalServerError)
+		return
+	}
+
+	projectExists, err := h.projectExists(ctx, l, cp, w, projectName)
+
+	if err != nil || !projectExists {
+		return
+	}
+
+	tokens, err := h.dbClient.ListTokenEntries(ctx, projectName)
+	if err != nil {
+		level.Error(l).Log("message", "error listing project tokens", "error", err)
+		h.errorResponse(w, "error listing project tokens", http.StatusInternalServerError)
+		return
+	}
+
+	resp := []responses.ListTokens{}
+	for _, tokenEntry := range tokens {
+		resp = append(resp, responses.ListTokens{
+			CreatedAt: tokenEntry.CreatedAt,
+			TokenID:   tokenEntry.TokenID,
+		})
+	}
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		level.Error(l).Log("message", "error serializing project tokens", "error", err)
+		h.errorResponse(w, "error listing project tokens", http.StatusInternalServerError)
+		return
+	}
 }
 
 // Convenience method that writes a failure response in a standard manner

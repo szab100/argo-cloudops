@@ -1,12 +1,23 @@
 package validations
 
 import (
+	"path/filepath"
 	"regexp"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/distribution/distribution/reference"
 )
+
+var (
+	imageURIs []string
+)
+
+// SetImageURIs restricts the approved container URIs to the provided set. To reset to a default allow-all state,
+// provide an empty list.
+func SetImageURIs(uris []string) {
+	imageURIs = uris
+}
 
 // Validate iterates through the provided validation funcs.
 func Validate(validations ...func() error) error {
@@ -58,6 +69,27 @@ func IsValidARN(s string) bool {
 func IsValidImageURI(imageURI string) bool {
 	_, err := reference.ParseAnyReference(imageURI)
 	return err == nil
+}
+
+// IsApprovedImageURI determines if the image URI is approved for use. Default is allow-all. Full filepath matching
+// rules are applied to allow varying levels of globbing and wildcards.
+// Examples:
+// - Direct match: docker.myco.com/cello/cdk:1234
+// - Direct image, any tag: docker.myco.com/cello/cdk:*
+// - Any image within a specific registry: docker.myco.com/*/*
+func IsApprovedImageURI(imageURI string) bool {
+	// default to allow all if no restrictions set
+	if len(imageURIs) == 0 {
+		return true
+	}
+
+	for _, pattern := range imageURIs {
+		if ok, _ := filepath.Match(pattern, imageURI); ok {
+			return true
+		}
+	}
+
+	return false
 }
 
 // IsValidGitURI determines if the provided string is a valid git URI.

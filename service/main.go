@@ -4,16 +4,16 @@
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
 
-	"github.com/argoproj-labs/argo-cloudops/service/internal/credentials"
-	"github.com/argoproj-labs/argo-cloudops/service/internal/db"
-	"github.com/argoproj-labs/argo-cloudops/service/internal/env"
-	"github.com/argoproj-labs/argo-cloudops/service/internal/git"
-	"github.com/argoproj-labs/argo-cloudops/service/internal/workflow"
+	"github.com/cello-proj/cello/internal/validations"
+	"github.com/cello-proj/cello/service/internal/credentials"
+	"github.com/cello-proj/cello/service/internal/db"
+	"github.com/cello-proj/cello/service/internal/env"
+	"github.com/cello-proj/cello/service/internal/git"
+	"github.com/cello-proj/cello/service/internal/workflow"
 
 	"github.com/argoproj/argo-workflows/v3/cmd/argo/commands/client"
 	"github.com/go-kit/log"
@@ -47,20 +47,8 @@ func main() {
 	}
 	level.Info(logger).Log("message", fmt.Sprintf("loading config '%s' completed", env.ConfigFilePath))
 
-	var gitClient git.BasicClient
-
-	if env.GitAuthMethod == "https" {
-		gitClient, err = git.NewHTTPSBasicClient(env.GitHTTPSUser, env.GitHTTPSPass)
-	} else if env.GitAuthMethod == "ssh" {
-		gitClient, err = git.NewSSHBasicClient(env.SSHPEMFile)
-	} else {
-		panic(fmt.Sprintf("Invalid git auth method provided %s", env.GitAuthMethod))
-	}
-
-	if err != nil {
-		level.Error(logger).Log("message", "error creating git client", "error", err)
-		panic("error creating git client")
-	}
+	// temp, will rm after config restructure
+	validations.SetImageURIs(env.ImageURIs)
 
 	// The Argo context is needed for any Argo client method calls or else, nil errors.
 	argoCtx, argoClient := client.NewAPIClient()
@@ -80,27 +68,13 @@ func main() {
 		argo:                   workflow.NewArgoWorkflow(argoClient.NewWorkflowServiceClient(), env.ArgoNamespace),
 		argoCtx:                argoCtx,
 		config:                 config,
-		gitClient:              gitClient,
+		gitClient:              gitClient(env, logger),
 		env:                    env,
 		dbClient:               dbClient,
 	}
 
 	level.Info(logger).Log("message", "starting web service", "vault addr", env.VaultAddress, "argoAddr", env.ArgoAddress)
-
-	r := setupRouter(h)
-	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", env.Port),
-		Handler: r,
-		TLSConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			NextProtos: []string{
-				"http/1.1",
-			},
-		},
-	}
-
-	err = srv.ListenAndServeTLS("ssl/certificate.crt", "ssl/certificate.key")
-	if err != nil {
+	if err := http.ListenAndServeTLS(fmt.Sprintf(":%d", env.Port), "ssl/certificate.crt", "ssl/certificate.key", setupRouter(h)); err != nil {
 		level.Error(logger).Log("message", "error starting service", "error", err)
 		panic("error starting service")
 	}
@@ -113,4 +87,29 @@ func setLogLevel(logger *log.Logger, logLevel string) {
 	default:
 		*logger = level.NewFilter(*logger, level.AllowInfo())
 	}
+}
+
+func gitClient(env env.Vars, logger log.Logger) git.BasicClient {
+	var cl git.BasicClient
+	var err error
+
+	var opts []git.Option
+	if env.LogLevel == "DEBUG" {
+		opts = append(opts, git.WithProgressWriter(os.Stdout))
+	}
+
+	if env.GitAuthMethod == "https" {
+		cl, err = git.NewHTTPSBasicClient(env.GitHTTPSUser, env.GitHTTPSPass, opts...)
+	} else if env.GitAuthMethod == "ssh" {
+		cl, err = git.NewSSHBasicClient(env.SSHPEMFile, opts...)
+	} else {
+		panic(fmt.Sprintf("Invalid git auth method provided %s", env.GitAuthMethod))
+	}
+
+	if err != nil {
+		level.Error(logger).Log("message", "error creating git client", "error", err)
+		panic("error creating git client")
+	}
+
+	return cl
 }

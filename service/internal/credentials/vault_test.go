@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/argoproj-labs/argo-cloudops/internal/requests"
+	"github.com/cello-proj/cello/internal/types"
 
 	"github.com/google/go-cmp/cmp"
 	vault "github.com/hashicorp/vault/api"
@@ -14,18 +14,20 @@ var errTest = fmt.Errorf("error")
 
 func TestVaultCreateProject(t *testing.T) {
 	tests := []struct {
-		name           string
-		admin          bool
-		expectedRole   string
-		expectedSecret string
-		vaultErr       error
-		errResult      bool
+		name                   string
+		admin                  bool
+		expectedRole           string
+		expectedSecret         string
+		expectedSecretAccessor string
+		vaultErr               error
+		errResult              bool
 	}{
 		{
-			name:           "create project success",
-			admin:          true,
-			expectedSecret: "test-secret",
-			expectedRole:   "test-role",
+			name:                   "create project success",
+			admin:                  true,
+			expectedSecret:         "test-secret",
+			expectedSecretAccessor: "test-secret-accessor",
+			expectedRole:           "test-role",
 		},
 		{
 			name:      "create project admin error",
@@ -50,13 +52,14 @@ func TestVaultCreateProject(t *testing.T) {
 			v := VaultProvider{
 				roleID: role,
 				vaultLogicalSvc: &mockVaultLogical{err: tt.vaultErr, data: map[string]interface{}{
-					"secret_id": tt.expectedSecret,
-					"role_id":   tt.expectedRole,
+					"secret_id":          tt.expectedSecret,
+					"secret_id_accessor": tt.expectedSecretAccessor,
+					"role_id":            tt.expectedRole,
 				}},
 				vaultSysSvc: &mockVaultSys{},
 			}
 
-			roleID, secretID, err := v.CreateProject("testProject")
+			roleID, secretID, _, err := v.CreateProject("testProject")
 			if err != nil {
 				if !tt.errResult {
 					t.Errorf("\ndid not expect error, got: %v", err)
@@ -113,7 +116,57 @@ func TestVaultCreateTarget(t *testing.T) {
 				vaultLogicalSvc: &mockVaultLogical{err: tt.vaultErr},
 			}
 
-			err := v.CreateTarget("test", requests.CreateTarget{})
+			err := v.CreateTarget("test", types.Target{})
+			if err != nil {
+				if !tt.errResult {
+					t.Errorf("\ndid not expect error, got: %v", err)
+				}
+			} else {
+				if tt.errResult {
+					t.Errorf("\nexpected error")
+				}
+			}
+		})
+	}
+}
+
+func TestVaultUpdateTarget(t *testing.T) {
+	tests := []struct {
+		name      string
+		admin     bool
+		vaultErr  error
+		errResult bool
+	}{
+		{
+			name:  "update target success",
+			admin: true,
+		},
+		{
+			name:      "update target admin error",
+			admin:     false,
+			errResult: true,
+		},
+		{
+			name:      "update target error",
+			admin:     true,
+			vaultErr:  errTest,
+			errResult: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			var role = "testRole"
+			if tt.admin {
+				role = authorizationKeyAdmin
+			}
+			v := VaultProvider{
+				roleID:          role,
+				vaultLogicalSvc: &mockVaultLogical{err: tt.vaultErr},
+			}
+
+			err := v.UpdateTarget("test", types.Target{})
 			if err != nil {
 				if !tt.errResult {
 					t.Errorf("\ndid not expect error, got: %v", err)
@@ -501,6 +554,44 @@ func TestValidateAuthorizedAdmin(t *testing.T) {
 			err := a.Validate(a.ValidateAuthorizedAdmin("validSecret"))
 			if err != nil != tt.expectErr {
 				t.Errorf("\nwant error: %v\n got error: %v", tt.expectErr, err != nil)
+			}
+		})
+	}
+}
+
+func TestNewAuthorization(t *testing.T) {
+	tests := []struct {
+		name         string
+		header       string
+		expectedAuth *Authorization
+		expectErr    bool
+	}{
+		{
+			name:         "valid authorization header",
+			header:       "vault:testkey:testsecret",
+			expectedAuth: &Authorization{"vault", "testkey", "testsecret"},
+			expectErr:    false,
+		},
+		{
+			name:      "invalid authorization header",
+			header:    "vault:testbad",
+			expectErr: true,
+		},
+		{
+			name:      "authorization header empty",
+			header:    "",
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a, err := NewAuthorization(tt.header)
+			if err != nil != tt.expectErr {
+				t.Errorf("\nwant error: %v\n got error: %v", tt.expectErr, err != nil)
+			}
+			if !cmp.Equal(a, tt.expectedAuth) {
+				t.Errorf("\nwant auth: %v\n got: %v", tt.expectedAuth, a)
 			}
 		})
 	}

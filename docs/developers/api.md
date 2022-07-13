@@ -15,9 +15,10 @@ Request Body
 
 Response Body
 
-```
+```json
 {
-  "token": "abcd-1234"
+  "token": "abcd-1234",
+  "token_id": "dcba-4321"
 }
 ```
 
@@ -27,9 +28,10 @@ GET /projects/<project_name>
 
 Response Body
 
-```
+```json
 {
-  "name": "myproject"
+  "name": "myproject",
+  "repository": "git@github.com:myorg/myrepo.git"
 }
 ```
 
@@ -43,6 +45,26 @@ Response Body
 
 ```
 ```
+
+## Create Token
+
+POST /projects/<project_name>/tokens
+
+Request Body
+
+```json
+```
+
+Response Body
+```json
+{
+  "created_at": "2022-06-27T21:59:58-07:00",
+  "token": "vault:98765432-abcd-1234-5678-abcdef123456:abcdef12-3456-7890-abcd-ef1234567890",
+  "token_id": "abcdef12-3456-7890-abcd-ef1234567890"
+}
+```
+
+
 
 ## Create Target
 
@@ -98,15 +120,64 @@ Response Body
 
 ```json
 {
-  "credential_type":"assumed_role",
-  "policy_arns": [
-    "arn:aws:iam::aws:policy/AmazonS3FullAccess",
-    "arn:aws:iam::aws:policy/AmazonSNSFullAccess",
-    "arn:aws:iam::aws:policy/AmazonSQSFullAccess",
-    "arn:aws:iam::aws:policy/AWSCloudFormationFullAccess"
-  ],
-  "policy_document": "{ \"Version\": \"2012-10-17\", \"Statement\": [ { \"Effect\": \"Allow\", \"Action\": \"s3:ListBuckets\", \"Resource\": \"*\" } ] }",
-  "role_arn":"arn:aws:iam::123456789012:role/ArgoCloudOpsSampleRole"
+  "name": "target1",
+  "type": "aws_account",
+  "properties": {
+    "credential_type": "assumed_role",
+    "policy_arns": [
+      "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+      "arn:aws:iam::aws:policy/AmazonSNSFullAccess",
+      "arn:aws:iam::aws:policy/AmazonSQSFullAccess",
+      "arn:aws:iam::aws:policy/AWSCloudFormationFullAccess"
+    ],
+    "policy_document": "{ \"Version\": \"2012-10-17\", \"Statement\": [ { \"Effect\": \"Allow\", \"Action\": \"s3:ListBuckets\", \"Resource\": \"*\" } ] }",
+    "role_arn": "arn:aws:iam::123456789012:role/CelloSampleRole"
+  }
+}
+```
+
+## Update Target
+
+PATCH /projects/<project_name>/targets/<target_name>
+
+Request Body
+
+```json
+{
+  "properties": {
+    "policy_arns": [
+      "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+      "arn:aws:iam::aws:policy/AmazonSNSFullAccess",
+      "arn:aws:iam::aws:policy/AmazonSQSFullAccess",
+      "arn:aws:iam::aws:policy/AWSCloudFormationFullAccess"
+    ],
+    "policy_document": "{ \"Version\": \"2012-10-17\", \"Statement\": [ { \"Effect\": \"Allow\", \"Action\": \"s3:ListBuckets\", \"Resource\": \"*\" } ] }",
+    "role_arn": "arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
+  }
+}
+```
+
+Note: Target properties that are provided will be updated with the new values provided.
+Properties that are not provided in the PATCH request will remain with their current values.
+`credential_type` cannot be updated
+
+Response Body
+
+```json
+{
+  "name": "target1",
+  "type": "aws_account",
+  "properties": {
+    "credential_type": "assumed_role",
+    "policy_arns": [
+      "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+      "arn:aws:iam::aws:policy/AmazonSNSFullAccess",
+      "arn:aws:iam::aws:policy/AmazonSQSFullAccess",
+      "arn:aws:iam::aws:policy/AWSCloudFormationFullAccess"
+    ],
+    "policy_document": "{ \"Version\": \"2012-10-17\", \"Statement\": [ { \"Effect\": \"Allow\", \"Action\": \"s3:ListBuckets\", \"Resource\": \"*\" } ] }",
+    "role_arn": "arn:aws:iam::123456789012:role/CelloSampleRole"
+  }
 }
 ```
 
@@ -119,6 +190,33 @@ Response Body
 ```
 ```
 
+## Delete Project Token
+
+DELETE /projects/<project_name>/tokens/<token_id>
+
+Response Body
+
+```
+```
+
+## List Project Tokens
+
+GET /projects/<project_name>/tokens
+
+Response Body
+
+```json
+[
+  {
+    "created_at": "2022-06-21T14:56:10.341066-07:00",
+    "token_id": "ghi789"
+  },
+  {
+    "created_at": "2022-06-21T14:43:16.172896-07:00",
+    "token_id": "def456"
+  },
+]
+```
 
 ## Create Workflow
 
@@ -139,17 +237,17 @@ Request Body
   },
   "environment_variables": {
     "AWS_REGION": "us-west-2",
-    "CODE_URI": "s3://argo-cloudops-cet-dev/terraform-example.zip",
+    "CODE_URI": "s3://cello-cet-dev/terraform-example.zip",
     "VAULT_ADDR": "http://docker.for.mac.localhost:8200"
   },
   "framework": "terraform",
   "parameters": {
-    "execute_container_image_uri": "a80addc4/argo-cloudops-terraform:0.14.5"
+    "execute_container_image_uri": "a80addc4/cello-terraform:0.14.5"
   },
   "project_name": "project1",
   "target_name": "target1",
   "type": "sync",
-  "workflow_template_name": "argo-cloudops-single-step-vault-aws"
+  "workflow_template_name": "cello-single-step-vault-aws"
 }
 ```
 
@@ -172,8 +270,7 @@ Request Body
 ```json
 {
   "sha": "1234abdc5678efgh9012ijkl3456mnop7890qrst",
-  "path": "path/to/manifest.yaml",
-  "type": "sync"
+  "path": "path/to/manifest.yaml"
 }
 ```
 

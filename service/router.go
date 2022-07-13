@@ -27,8 +27,12 @@ func setupRouter(h handler) *mux.Router {
 	r.HandleFunc("/projects/{projectName}/targets", h.createTarget).Methods(http.MethodPost)
 	r.HandleFunc("/projects/{projectName}/targets/{targetName}", h.getTarget).Methods(http.MethodGet)
 	r.HandleFunc("/projects/{projectName}/targets/{targetName}", h.deleteTarget).Methods(http.MethodDelete)
+	r.HandleFunc("/projects/{projectName}/targets/{targetName}", h.updateTarget).Methods(http.MethodPatch)
 	r.HandleFunc("/projects/{projectName}/targets/{targetName}/operations", h.createWorkflowFromGit).Methods(http.MethodPost)
 	r.HandleFunc("/projects/{projectName}/targets/{targetName}/workflows", h.listWorkflows).Methods(http.MethodGet)
+	r.HandleFunc("/projects/{projectName}/tokens", h.createToken).Methods(http.MethodPost)
+	r.HandleFunc("/projects/{projectName}/tokens", h.listTokens).Methods(http.MethodGet)
+	r.HandleFunc("/projects/{projectName}/tokens/{tokenID}", h.deleteToken).Methods(http.MethodDelete)
 	r.HandleFunc("/health/full", h.healthCheck).Methods(http.MethodGet)
 	return r
 }

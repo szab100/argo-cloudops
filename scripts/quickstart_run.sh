@@ -99,7 +99,15 @@ set -e
 # dont fail if alredy exists
 set +e
 export POSTGRES_POD="$(kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep postgres)"
-kubectl exec $POSTGRES_POD -- psql -lqt | cut -d \| -f 1 | grep argocloudops
+
+RETRIES=20
+until kubectl exec $POSTGRES_POD -- psql -d postgres -c "select 1" > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
+  echo "Waiting for postgres server to fully start up, $((RETRIES--)) remaining attempts..."
+  sleep 3
+done
+
+# Check if db exists, create if not
+kubectl exec $POSTGRES_POD -- psql -lqt | cut -d \| -f 1 | grep cello
 if [ $? != 0 ]; then
   kubectl cp ./scripts/createdbtables.sql $POSTGRES_POD:./createdbtables.sql
   kubectl exec $POSTGRES_POD -- createdb argocloudops -U postgres
